@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Wizard's Puzzle Tower</title>
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</head>
+<body style="background: #e1f5fe;">
+
+<div class="main-wrapper">
+    <div class="sidebar-left">
+        <a href="/" class="magical-button secondary"><i class="fas fa-arrow-left"></i> Home</a>
+
+        <div style="background: #fff; padding: 10px; border-radius: 8px; margin: 15px 0; text-align: center; border: 2px solid #0288d1; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div style="font-size: 0.8em; text-transform: uppercase; color: #555; letter-spacing: 1px;">Puzzle Rating</div>
+            <div id="userPuzzleElo" style="font-size: 2em; font-weight: bold; color: #0288d1;">--</div>
+        </div>
+
+        <div class="frog-container" style="border-color: #0288d1;">
+            <img src="{{ url_for('static', filename='img/wizard_frog.png') }}" alt="Frog" class="frog-img">
+        </div>
+        <div class="dialogue-bubble" id="puzzleFrog">
+            Step into my tower... Can you solve this riddle?
+        </div>
+
+        <button id="newPuzzleBtn" class="magical-button blue" style="margin-top:20px;">
+            🔮 Conjure New Puzzle
+        </button>
+
+        <button id="revealBtn" class="magical-button secondary" style="margin-top:10px; display:none;">
+            👀 Reveal Solution
+        </button>
+
+        <div id="hintBox" style="margin-top:20px; padding:10px; background:#fff; border-radius:10px; display:none; border-left: 5px solid #0288d1;">
+            <strong>Hint:</strong> <span id="hintText"></span>
+        </div>
+    </div>
+
+    <div class="board-container">
+        <h2>🧩 The Puzzle Tower</h2>
+        <div id="puzzleBoard" style="width: 550px"></div>
+        <div id="puzzleStatus" style="margin-top:10px; font-weight:bold; color:#0277bd;">Click 'Conjure' to begin.</div>
+    </div>
+
+    <div class="sidebar-right">
+        <h3>📜 Solution Scroll</h3>
+        <div class="move-list-container" style="height: 400px; background: #fff; border: 2px solid #b3e5fc; border-radius: 8px;">
+            <table id="puzzleMoveTable" style="width: 100%; text-align: left; border-collapse: collapse;">
+                <thead style="background: #e1f5fe; color: #0277bd;">
+                    <tr>
+                        <th style="padding: 8px;">#</th>
+                        <th style="padding: 8px;">Move</th>
+                    </tr>
+                </thead>
+                <tbody id="puzzleMovesBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+// Safe Sound Loader
+function playSound(type) {
+    if (window.SoundFX && typeof window.SoundFX[type] === 'function') {
+        try { window.SoundFX[type](); } catch(e) {}
+    }
+}
+
+$(document).ready(function() {
+    var game = new Chess();
+    var board = null;
+    var currentSolution = [];
+    var moveIndex = 0;
+    var puzzleActive = false;
+    var hasFailed = false;
+
+    var config = {
+        draggable: true,
+        position: 'start',
+        pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+        onDragStart: function(source, piece) {
+            if (!puzzleActive || game.game_over()) return false;
+            // Prevent moving opponent pieces
+            if (game.turn() === 'w' && piece.search(/^b/) !== -1) return false;
+            if (game.turn() === 'b' && piece.search(/^w/) !== -1) return false;
+            return true;
+        },
+        onDrop: handleMove,
+        onSnapEnd: function() { board.position(game.fen()); }
+    };
+
+    board = Chessboard('puzzleBoard', config);
+
+    // --- CONJURE PUZZLE ---
+    $('#newPuzzleBtn').click(function() {
+        $('#puzzleFrog').text("Conjuring...");
+        setFrogMood('thinking');
+        playSound('start');
+
+        $.get('/get_puzzle', function(data) {
+            if(data.error) {
+                $('#puzzleFrog').text("Fizzle... " + data.error);
+                setFrogMood('mad');
+                return;
+            }
+
+            game.load(data.fen);
+            board.position(data.fen);
+            currentSolution = data.solution;
+            moveIndex = 0;
+            puzzleActive = true;
+            hasFailed = false;
+            $('#puzzleMovesBody').empty(); // Clear old moves
+
+            var playerColor = game.turn() === 'w' ? 'white' : 'black';
+            board.orientation(playerColor);
+
+            $('#hintBox').show();
+            $('#hintText').text(data.hint);
+            $('#userPuzzleElo').text(data.user_puzzle_elo);
+            $('#puzzleFrog').text("Your turn! (" + data.theme + ")");
+            $('#puzzleStatus').text("Playing as " + playerColor);
+
+            $('#newPuzzleBtn').hide();
+            $('#revealBtn').show();
+
+            setFrogMood('happy');
+            playSound('success');
+
+        }).fail(function() {
+            $('#puzzleFrog').text("Connection Failed!");
+            setFrogMood('mad');
+        });
+    });
+
+    // --- HANDLE MOVE ---
+    function handleMove(source, target) {
+        try {
+            var moveObj = game.move({ from: source, to: target, promotion: 'q' });
+            if (moveObj === null) return 'snapback';
+
+            var uciMove = moveObj.from + moveObj.to + (moveObj.promotion ? moveObj.promotion : '');
+
+            // CHECK ANSWER
+            if (uciMove === currentSolution[moveIndex]) {
+                // Correct!
+                addMoveToTable(moveObj.san, moveIndex + 1); // Add to list
+                moveIndex++;
+                playSound('move');
+
+                if (moveIndex >= currentSolution.length) {
+                    puzzleActive = false;
+                    $('#puzzleFrog').text("Brilliant! Solved!");
+                    $('#puzzleStatus').text("SOLVED!");
+                    playSound('success');
+                    setFrogMood('happy');
+                    $('#newPuzzleBtn').show();
+                    $('#revealBtn').hide();
+                    if(!hasFailed) $.post('/puzzle_success', function(res){ $('#userPuzzleElo').text(res.new_elo); });
+                } else {
+                    // Opponent Responds
+                    $('#puzzleStatus').text("Good! Keep going...");
+                    setTimeout(function() {
+                        var engMove = currentSolution[moveIndex];
+                        makeMoveString(engMove); // Play move
+                        moveIndex++;
+                        playSound('move');
+                    }, 500);
+                }
+            } else {
+                game.undo();
+                playSound('error');
+                setFrogMood('mad');
+                $('#puzzleFrog').text("Wrong move...");
+                if(!hasFailed) {
+                    hasFailed = true;
+                    $.post('/puzzle_fail', function(res){ $('#userPuzzleElo').text(res.new_elo); });
+                }
+                return 'snapback';
+            }
+
+        } catch (e) { return 'snapback'; }
+    }
+
+    // --- REVEAL SOLUTION ---
+    $('#revealBtn').click(function() {
+        if(!puzzleActive) return;
+
+        if(!hasFailed) {
+            hasFailed = true;
+            $.post('/puzzle_fail', function(res){ $('#userPuzzleElo').text(res.new_elo); });
+        }
+
+        $('#revealBtn').hide();
+        $('#newPuzzleBtn').hide();
+        $('#puzzleFrog').text("Behold the path...");
+
+        // Play rest of moves automatically
+        function playNext() {
+    if (moveIndex >= currentSolution.length) {
+        puzzleActive = false;
+        $('#puzzleStatus').text("Revealed.");
+        $('#newPuzzleBtn').show();
+        return;
+    }
+
+    var moveStr = currentSolution[moveIndex];
+    moveIndex++;  // Increment BEFORE calling makeMoveString
+    makeMoveString(moveStr);
+    playSound('move');
+
+    setTimeout(playNext, 800);
+}
+        playNext();
+    });
+
+    function makeMoveString(uci) {
+    if(!uci) return;
+    var from = uci.substring(0,2);
+    var to = uci.substring(2,4);
+    var prom = uci.length > 4 ? uci[4] : 'q';
+
+    var moveObj = game.move({ from: from, to: to, promotion: prom });
+    board.position(game.fen());
+
+    // Add to table if move was successful
+    if(moveObj) addMoveToTable(moveObj.san, moveIndex); // Changed from moveIndex + 1
+}
+
+    function addMoveToTable(san, index) {
+        var row = `<tr>
+            <td style="padding: 5px; border-bottom: 1px solid #eee;">${index}</td>
+            <td style="padding: 5px; border-bottom: 1px solid #eee; font-weight:bold;">${san}</td>
+        </tr>`;
+        $('#puzzleMovesBody').append(row);
+
+        // Auto scroll down
+        var container = $('.move-list-container');
+        container.scrollTop(container[0].scrollHeight);
+    }
+});
+</script>
+</body>
+</html>

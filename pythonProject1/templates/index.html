@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wizard Frog Chess</title>
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+
+<div class="main-wrapper">
+    <div class="sidebar-left">
+        <div class="frog-container">
+            <img src="{{ url_for('static', filename='img/wizard_frog.png') }}" alt="Frog" class="frog-img">
+        </div>
+        <div class="dialogue-bubble" id="frogDialogue">Ribbit! Ready to play?</div>
+
+        <div class="stats-panel">
+            <h3>Stats</h3>
+            <p>ELO: <span id="eloValue">{{ elo }}</span></p>
+        </div>
+
+        <a href="/openings_hall" class="magical-button" style="background: linear-gradient(45deg, #9c27b0, #673ab7); text-align:center; text-decoration:none; display:block;">
+            🥋 Opening Dojo
+        </a>
+
+        <a href="/puzzles_hall" class="magical-button" style="background: linear-gradient(45deg, #039be5, #00acc1); text-align:center; text-decoration:none; display:block; margin-top:10px;">
+            🧩 Puzzle Tower
+        </a>
+
+        <div style="background: rgba(255,255,255,0.5); padding: 10px; border-radius: 8px; margin: 10px 0;">
+            <label style="margin-right: 10px; font-weight: bold; color: #333;">Play as:</label>
+            <select id="colorSelect" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+                <option value="white">♔ White</option>
+                <option value="black">♚ Black</option>
+            </select>
+            <button id="resetBtn" class="magical-button" style="width: 100%; margin-top: 5px;">New Game</button>
+        </div>
+
+        <button id="historyBtn" class="magical-button secondary">Archives</button>
+    </div>
+
+    <div class="board-container">
+        <div id="myBoard" style="width: 550px"></div>
+        <div id="statusMessage">White to move.</div>
+
+        <div id="reviewControls" class="recap-box" style="display:none; background-color:#e3f2fd; border-color:#2196F3;">
+            <h3>🎥 Replay Mode</h3>
+            <div class="replay-buttons">
+                <button id="prevMoveBtn" class="nav-btn">⬅</button>
+                <span id="moveCounter">Start</span>
+                <button id="nextMoveBtn" class="nav-btn">➡</button>
+            </div>
+            <button id="exitReviewBtn" class="analyze-button red">Exit Replay</button>
+        </div>
+    </div>
+
+    <div class="sidebar-right">
+
+        <div id="moveListPanel">
+            <h3>Moves</h3>
+            <div class="move-list-container">
+                <table id="moveTable">
+                    <thead><tr><th>#</th><th>White</th><th>Black</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="analysisPanel" style="display:none; height: 100%; flex-direction: column;">
+            <h3 style="color:#673ab7; margin-bottom: 10px;">🧙‍♂️ Analysis</h3>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; background: #f3e5f5; padding: 10px; border-radius: 8px;">
+                <div style="flex: 1; text-align: center; border-right: 1px solid #d1c4e9;">
+                    <div style="font-size: 0.8em; color: #666;">Accuracy</div>
+                    <div id="analysisAccuracy" style="font-size: 1.5em; font-weight: bold; color: #2E8B57;">--%</div>
+                </div>
+                <div style="flex: 1; text-align: center;">
+                    <div style="font-size: 0.8em; color: #666;">Perf. Elo</div>
+                    <div id="analysisElo" style="font-size: 1.5em; font-weight: bold; color: #4682B4;">--</div>
+                </div>
+            </div>
+
+            <div id="analysisContent" class="analysis-content" style="flex-grow: 1;">
+                Loading AI Report...
+            </div>
+
+            <button onclick="closeAnalysis()" class="small-btn secondary" style="margin-top:10px;">Close Report</button>
+        </div>
+
+    </div>
+</div>
+
+<div id="historyModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <h2>📜 The Archives</h2>
+        <div id="historyListContainer" class="history-list-box">Loading...</div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+</body>
+</html>
